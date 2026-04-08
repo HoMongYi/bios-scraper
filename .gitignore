@@ -1,0 +1,25 @@
+# 수집 데이터
+*.db
+*_final.json
+*_master.json
+
+# 런타임 상태
+*_checkpoint.json
+
+# 로그
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# 디버그 HTML
+debug_*.html
