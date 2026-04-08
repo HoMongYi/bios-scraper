@@ -944,7 +944,15 @@ def main():
         "--recollect", action="store_true",
         help="수집 결과 캐시(final JSON) 포함 전체 초기화 후 재수집"
     )
+    parser.add_argument(
+        "--data-dir", default=None,
+        help="DB 저장 경로 (기본: 스크래퍼 폴더)"
+    )
     args = parser.parse_args()
+
+    global DB_FILE
+    if args.data_dir:
+        DB_FILE = os.path.join(args.data_dir, os.path.basename(DB_FILE))
 
     session = requests.Session()
     session.headers.update(API_HEADERS)

@@ -31,6 +31,9 @@ python asus_bios_scraper.py --recollect
 
 # 단일 모델 API 응답 디버그 출력
 python asus_bios_scraper.py --debug "ROG STRIX B650E-F GAMING WIFI"
+
+# DB를 지정 경로에 저장 (Docker 공유 폴더 등)
+python asus_bios_scraper.py --data-dir /volume1/docker/bios-finder/server/data
 ```
 
 ## 주요 설정 (`CONFIG`)

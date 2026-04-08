@@ -786,7 +786,13 @@ def main():
     parser.add_argument("--recollect", action="store_true", help="no_bios_log 포함 전체 재수집")
     parser.add_argument("--debug", metavar="MODEL_ID",
                         help="단일 모델 API 응답 구조 출력 (예: A320M-PRO-C)")
+    parser.add_argument("--data-dir", default=None,
+                        help="DB 저장 경로 (기본: 스크래퍼 폴더)")
     args = parser.parse_args()
+
+    global DB_FILE
+    if args.data_dir:
+        DB_FILE = os.path.join(args.data_dir, os.path.basename(DB_FILE))
 
     if args.debug:
         debug_single(args.debug)

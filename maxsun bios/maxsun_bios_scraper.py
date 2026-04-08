@@ -740,7 +740,13 @@ def main():
                         help="체크포인트 무시, 전체 재수집")
     parser.add_argument("--retry-db",    action="store_true",
                         help="DB에서 BIOS 없는 모델만 재시도")
+    parser.add_argument("--data-dir",    default=None,
+                        help="DB 저장 경로 (기본: 스크래퍼 폴더)")
     args = parser.parse_args()
+
+    global DB_FILE
+    if args.data_dir:
+        DB_FILE = os.path.join(args.data_dir, os.path.basename(DB_FILE))
 
     if args.no_headless:
         CONFIG["headless"] = False

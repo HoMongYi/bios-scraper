@@ -46,6 +46,9 @@ python asrock_bios_scraper.py --reset
 
 # HTML 디버그 저장 활성화
 python asrock_bios_scraper.py --debug
+
+# DB를 지정 경로에 저장 (Docker 공유 폴더 등)
+python asrock_bios_scraper.py --data-dir /volume1/docker/bios-finder/server/data
 ```
 
 ## 주요 설정 (`CONFIG`)

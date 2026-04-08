@@ -685,7 +685,15 @@ def main():
         "--full", action="store_true",
         help="no_bios_log 모델 포함 전체 재수집"
     )
+    parser.add_argument(
+        "--data-dir", default=None,
+        help="DB 저장 경로 (기본: 스크래퍼 폴더)"
+    )
     args = parser.parse_args()
+
+    global DB_FILE
+    if args.data_dir:
+        DB_FILE = os.path.join(args.data_dir, os.path.basename(DB_FILE))
 
     session = requests.Session()
     session.headers.update(HEADERS)

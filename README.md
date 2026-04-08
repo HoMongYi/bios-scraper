@@ -81,6 +81,7 @@ python "maxsun bios/maxsun_bios_scraper.py"
 | `--retry-db` | DB에서 BIOS 없는 모델만 재시도 |
 | `--no-headless` | 브라우저 창 표시 (Playwright 기반만 해당) |
 | `--debug` | 디버그 정보 출력 / HTML 저장 |
+| `--data-dir PATH` | DB 저장 경로 지정 (기본: 스크래퍼 폴더) |
 
 ## 자동 실행 (crontab)
 

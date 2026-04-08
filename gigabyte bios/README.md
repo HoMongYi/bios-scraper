@@ -34,6 +34,9 @@ python gigabyte_bios_scraper.py --recollect
 
 # 단일 모델 디버그 출력
 python gigabyte_bios_scraper.py --debug "Z890 AORUS MASTER"
+
+# DB를 지정 경로에 저장 (Docker 공유 폴더 등)
+python gigabyte_bios_scraper.py --data-dir /volume1/docker/bios-finder/server/data
 ```
 
 ## 주요 설정 (`CONFIG`)
