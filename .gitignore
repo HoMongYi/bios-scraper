@@ -23,3 +23,6 @@ venv/
 
 # 디버그 HTML
 debug_*.html
+
+# 로컬 실행 스크립트
+run_all_scrapers.sh
