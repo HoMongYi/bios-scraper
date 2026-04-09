@@ -4,14 +4,14 @@
 
 ## 지원 제조사
 
-| 폴더 | 제조사 | 수집 방식 |
-|---|---|---|
-| `asrock bios/` | ASRock | Playwright (병렬) |
-| `asus bios/` | ASUS | requests API (병렬) |
-| `gigabyte bios/` | Gigabyte | requests + nodriver 폴백 (병렬) |
-| `msi bios/` | MSI | requests API (병렬) |
-| `biostar bios/` | Biostar | Playwright (순차) |
-| `maxsun bios/` | Maxsun | Playwright (순차) |
+| 폴더 | 제조사 | 수집 방식 | 이미지 수집 |
+|---|---|---|---|
+| `asrock bios/` | ASRock | Playwright (병렬) | 모델 목록 페이지에서 수집 |
+| `asus bios/` | ASUS | requests API (병렬) | BIOS API 응답에 포함 |
+| `gigabyte bios/` | Gigabyte | requests + nodriver 폴백 (병렬) | support 페이지 파싱, DB 캐시 활용 |
+| `msi bios/` | MSI | requests API (병렬) | 모델 API 응답에 포함 |
+| `biostar bios/` | Biostar | Playwright (순차) | 제품 페이지에서 파싱 |
+| `maxsun bios/` | Maxsun | Playwright (순차) | 검색 API로 별도 수집, DB 캐시 활용 |
 
 ## 공통 DB 스키마
 
@@ -22,7 +22,7 @@
 motherboards (
     model_id / model_name  TEXT PRIMARY KEY,
     ...
-    image_url       TEXT,   -- DB에 값이 있으면 스크래퍼가 덮어쓰지 않음
+    image_url       TEXT,   -- 기존 값이 있으면 덮어쓰지 않음 (UPSERT 보호)
     updated_at      TEXT,   -- 마지막 스크랩 시각
     last_valid_date TEXT    -- 마지막으로 BIOS가 수집된 날짜
 )
@@ -37,6 +37,9 @@ bios_versions (
     UNIQUE(model_id, version)
 )
 ```
+
+> **이미지 DB 캐시**: Maxsun과 Gigabyte는 실행 시작 시 DB에서 기존 `image_url`을 미리 로드합니다.
+> 이미 수집된 모델은 불필요한 이미지 요청을 건너뜁니다.
 
 ## 설치
 
@@ -64,7 +67,6 @@ pip install nodriver
 각 스크래퍼 폴더의 README를 참조하세요.
 
 ```bash
-# 예시
 python "asrock bios/asrock_bios_scraper.py"
 python "asus bios/asus_bios_scraper.py"
 python "gigabyte bios/gigabyte_bios_scraper.py"
@@ -82,6 +84,28 @@ python "maxsun bios/maxsun_bios_scraper.py"
 | `--no-headless` | 브라우저 창 표시 (Playwright 기반만 해당) |
 | `--debug` | 디버그 정보 출력 / HTML 저장 |
 | `--data-dir PATH` | DB 저장 경로 지정 (기본: 스크래퍼 폴더) |
+
+## 공통 로그 패턴
+
+모든 스크래퍼가 동일한 단계 구조와 로그 형식을 사용합니다.
+
+```
+📡 [1단계] {제조사} 메인보드 모델 리스트 수집 중...
+✅ 모델 리스트 수집 완료: N개
+💾 DB 기존 이미지 N개 로드 (캐시 사용)       ← Maxsun·Gigabyte만
+⏩ Resume 모드: N개 이미 완료, 나머지만 수집
+
+🚀 [2단계] 상세 수집 시작 (workers=N)
+📊 1차 수집 완료 | 성공: N개 | 실패: N개
+
+⏳ [3단계] 실패 모델 N개 → M분 후 재시도...
+🔄 재시도 시작 (N개)
+📊 재시도 완료 | 성공: N개 | 최종 실패: N개
+
+✨ 전체 완료!
+   ✅ 수집 성공: N개
+   🚫 BIOS 없음: N개
+```
 
 ## 자동 실행 (crontab)
 

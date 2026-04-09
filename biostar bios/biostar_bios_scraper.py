@@ -677,7 +677,7 @@ def collect_all_data(product_list: list, skip_models: set = None) -> tuple:
 
                     logger.info(f"      → BIOS {len(bios_list)}개 | {chipset}")
                 except Exception as e:
-                    logger.error(f"      🔥 예외: {e}")
+                    logger.error(f"      🔥 예외 발생 [{model_name}]: {e}")
                     bios_list = []
                     image_url = ""
 
@@ -891,10 +891,10 @@ def main():
 
     # DB 저장
     save_to_sqlite(all_data)
-    bios_total = sum(len(d.get("bios_list", [])) for d in all_data)
     logger.info(
-        f"\n✨ 완료! 총 {len(all_data)}개 모델 | "
-        f"BIOS 버전 합계: {bios_total}개"
+        f"\n✨ 전체 완료!\n"
+        f"   ✅ 수집 성공: {sum(1 for d in all_data if d.get('bios_list'))}개\n"
+        f"   🚫 BIOS 없음: {sum(1 for d in all_data if not d.get('bios_list'))}개"
     )
 
 

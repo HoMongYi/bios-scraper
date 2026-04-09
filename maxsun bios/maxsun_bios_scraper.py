@@ -511,6 +511,24 @@ def save_to_sqlite(all_data: list):
 
 
 # ──────────────────────────────────────────────────────────────────
+#  DB 기존 이미지 URL 캐시
+# ──────────────────────────────────────────────────────────────────
+def _load_existing_images() -> dict:
+    """DB에서 image_url이 있는 모델 조회 → {model_id: image_url}"""
+    if not os.path.exists(DB_FILE):
+        return {}
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cur  = conn.cursor()
+        cur.execute("SELECT model_id, image_url FROM motherboards WHERE image_url != ''")
+        result = {row[0]: row[1] for row in cur.fetchall()}
+        conn.close()
+        return result
+    except Exception:
+        return {}
+
+
+# ──────────────────────────────────────────────────────────────────
 #  영구 불가 모델 로그
 # ──────────────────────────────────────────────────────────────────
 def append_no_bios_log(model_names: list):
@@ -540,6 +558,9 @@ def collect_all_data(skip_models: set = None) -> tuple:
         skip_models = set()
 
     logger.info("\n🚀 [1단계] 상세 수집 시작")
+    existing_images = _load_existing_images()
+    if existing_images:
+        logger.info(f"💾 DB 기존 이미지 {len(existing_images)}개 로드 (캐시 사용)")
     all_data = []
     failed   = []
     n        = 0
@@ -624,8 +645,14 @@ def collect_all_data(skip_models: set = None) -> tuple:
                         bios_count = len(bios_list)
                         logger.info(f"      [{n}] {model_name} → BIOS {bios_count}개")
 
-                        image_url = fetch_image_url(model_name)
-                        logger.info(f"         이미지: {image_url or '없음'}")
+                        image_url = existing_images.get(model_val, "")
+                        if image_url:
+                            logger.info(f"         이미지: {image_url} (DB 캐시)")
+                        else:
+                            image_url = fetch_image_url(model_name)
+                            if image_url:
+                                existing_images[model_val] = image_url
+                            logger.info(f"         이미지: {image_url or '없음'}")
 
                         entry = {
                             "model_id":   model_val,
@@ -858,7 +885,7 @@ def main():
     existing_ids = {x["model_id"] for x in existing_data}
     all_data = existing_data + [d for d in new_data if d["model_id"] not in existing_ids]
 
-    # 2단계: 재시도
+    # 3단계: 재시도
     if failed:
         all_data = retry_failed(failed, all_data, completed)
     else:
@@ -866,10 +893,10 @@ def main():
 
     # DB 저장
     save_to_sqlite(all_data)
-    bios_total = sum(len(d.get("bios_list", [])) for d in all_data)
     logger.info(
-        f"\n✨ 완료! 총 {len(all_data)}개 모델 | "
-        f"BIOS 버전 합계: {bios_total}개"
+        f"\n✨ 전체 완료!\n"
+        f"   ✅ 수집 성공: {sum(1 for d in all_data if d.get('bios_list'))}개\n"
+        f"   🚫 BIOS 없음: {sum(1 for d in all_data if not d.get('bios_list'))}개"
     )
 
 

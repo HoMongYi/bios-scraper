@@ -658,8 +658,8 @@ def collect_bios_data(motherboards):
 
     logger.info(
         f"\n✨ 전체 완료!\n"
-        f"   ✅ 수집 성공:  {len(completed_models)}개\n"
-        f"   🚫 BIOS 없음:  {len(still_failed_mbs)}개"
+        f"   ✅ 수집 성공: {len(completed_models)}개\n"
+        f"   🚫 BIOS 없음: {len(still_failed_mbs)}개"
     )
 
 

@@ -534,15 +534,16 @@ def process_model(mb, _session):
             images = parse_nuxt_gallery(html)
             break
 
-    # 갤러리 없으면 /gallery 페이지 별도 fetch
-    if not images and product_url != "N/A":
+    cached_image = mb.get("cached_image_url", "")
+    # 갤러리 없으면 /gallery 페이지 별도 fetch (DB 캐시 없는 경우만)
+    if not images and not cached_image and product_url != "N/A":
         gallery_url = product_url.replace("/support", "/gallery")
         if gallery_url != product_url:
             gallery_html = fetch_page_html(gallery_url)
             if gallery_html:
                 images = parse_nuxt_gallery(gallery_html)
 
-    image_url = images[0] if images else ""
+    image_url = images[0] if images else cached_image
     time.sleep(random.uniform(CONFIG["delay_min"], CONFIG["delay_max"]))
 
     return {
@@ -768,6 +769,24 @@ def append_no_bios_log(model_names):
 
 
 # ──────────────────────────────────────────────────────────────────
+#  DB 기존 이미지 URL 캐시
+# ──────────────────────────────────────────────────────────────────
+def _load_existing_images() -> dict:
+    """DB에서 image_url이 있는 모델 조회 → {model_id: image_url}"""
+    if not os.path.exists(DB_FILE):
+        return {}
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cur  = conn.cursor()
+        cur.execute("SELECT model_id, image_url FROM motherboards WHERE image_url != ''")
+        result = {row[0]: row[1] for row in cur.fetchall()}
+        conn.close()
+        return result
+    except Exception:
+        return {}
+
+
+# ──────────────────────────────────────────────────────────────────
 #  병렬 수집 공통 함수
 # ──────────────────────────────────────────────────────────────────
 def run_collection(pending_mbs, total, done_offset, completed_models,
@@ -792,7 +811,7 @@ def run_collection(pending_mbs, total, done_offset, completed_models,
             try:
                 result = future.result()
             except Exception as e:
-                logger.error(f"🔥 예외 [{model}]: {e}")
+                logger.error(f"🔥 예외 발생 [{model}]: {e}")
                 result = None
 
             counter["n"] += 1
@@ -854,7 +873,15 @@ def collect_bios_data(motherboards):
         except Exception:
             all_data = []
 
+    existing_images = _load_existing_images()
+    if existing_images:
+        logger.info(f"💾 DB 기존 이미지 {len(existing_images)}개 로드 (캐시 사용)")
+
     pending = [mb for mb in motherboards if checkpoint_key(mb) not in completed_models]
+    for mb in pending:
+        mid = mb.get("model_id", "")
+        if mid in existing_images:
+            mb["cached_image_url"] = existing_images[mid]
     total   = len(motherboards)
     done    = len(completed_models)
 
@@ -884,6 +911,10 @@ def collect_bios_data(motherboards):
             time.sleep(30)
 
         logger.info(f"\n🔄 재시도 시작 ({len(failed_mbs)}개)")
+        for mb in failed_mbs:
+            mid = mb.get("model_id", "")
+            if mid in existing_images:
+                mb["cached_image_url"] = existing_images[mid]
         retry_total = len(failed_mbs)
         all_data, completed_models, still_failed = run_collection(
             pending_mbs=failed_mbs,

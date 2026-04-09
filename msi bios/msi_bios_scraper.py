@@ -653,7 +653,7 @@ def run_collection(pending_mbs, total, done_offset, completed_models,
                         progress.set_postfix_str(f"{model[:20]} | 💾 {bios_count}개")
                         progress.update(1)
                     else:
-                        print(f"✅ [{n}/{total}] {model[:30].ljust(30)} | 💾 {bios_count}개")
+                        print(f"✅ [{n}/{total}] {model[:25].ljust(25)} | 💾 {bios_count}개")
             else:
                 with save_lock:
                     failed_mbs.append(mb)
@@ -740,8 +740,8 @@ def collect_bios_data(motherboards):
     save_to_sqlite(all_data)
     logger.info(
         f"\n✨ 전체 완료!\n"
-        f"   ✅ 수집 성공:  {len(completed_models)}개\n"
-        f"   🚫 BIOS 없음:  {len(still_failed)}개"
+        f"   ✅ 수집 성공: {len(completed_models)}개\n"
+        f"   🚫 BIOS 없음: {len(still_failed)}개"
     )
 
 

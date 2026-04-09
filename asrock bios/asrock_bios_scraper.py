@@ -861,7 +861,7 @@ def run_collection(pending_mbs: list, total: int, done_offset: int,
             try:
                 f.result()
             except Exception as e:
-                logger.error(f"🔥 워커 예외: {e}")
+                logger.error(f"🔥 예외 발생: {e}")
 
     with save_lock:
         all_data.extend(results)
@@ -953,8 +953,8 @@ def collect_bios_data(motherboards: list):
     save_to_sqlite(all_data)
     logger.info(
         f"\n✨ 전체 완료!\n"
-        f"   ✅ 수집 성공:  {len(completed_models)}개\n"
-        f"   🚫 BIOS 없음:  {len(still_failed_mbs)}개"
+        f"   ✅ 수집 성공: {len(completed_models)}개\n"
+        f"   🚫 BIOS 없음: {len(still_failed_mbs)}개"
     )
 
 
