@@ -1,5 +1,6 @@
 """
 Biostar BIOS Data Collector
+crontab: 0 7 * * * python3 /path/to/biostar_bios_scraper.py
 
 사이트 구조:
   다운로드 센터: https://www.biostar.com.tw/app/kr/support/download.php
@@ -95,8 +96,8 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
         logging.FileHandler(os.path.join(BASE_PATH, "biostar_scraper.log"), encoding="utf-8"),
-        logging.StreamHandler(),
-    ],
+        logging.StreamHandler()
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -598,6 +599,7 @@ def gather_product_list(include_ipc: bool = False) -> list:
     다운로드 센터 드롭다운으로 소켓/칩셋 조합 열거 후 모델 목록 수집.
     반환: [{"s_id", "model_name", "product_type", "socket", "chipset"}, ...]
     """
+    logger.info("📡 [1단계] Biostar 메인보드 모델 리스트 수집 중...")
     all_products = []
 
     with sync_playwright() as pw:
@@ -627,7 +629,7 @@ def gather_product_list(include_ipc: bool = False) -> list:
             seen.add(p["s_id"])
             unique.append(p)
 
-    logger.info(f"📦 총 제품 수: {len(unique)}개")
+    logger.info(f"✅ 모델 리스트 수집 완료: {len(unique)}개")
     return unique
 
 
@@ -647,7 +649,7 @@ def collect_all_data(product_list: list, skip_models: set = None) -> tuple:
     n        = 0
     total    = len(product_list)
 
-    logger.info(f"\n� [2단계] 상세 수집 시작 ({total}개 제품)")
+    logger.info(f"\n🚀 [2단계] 상세 수집 시작 ({total}개 제품)")
 
     with sync_playwright() as pw:
         browser, ctx, page = _make_browser(pw)

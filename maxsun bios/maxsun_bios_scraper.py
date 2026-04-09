@@ -14,8 +14,9 @@ crontab: 0 7 * * * python3 /path/to/maxsun_bios_scraper.py
 
 실행 흐름:
   1단계 — Playwright: Product→Brand→Chipset→Model 순회 + BIOS 테이블 즉시 파싱
-  2단계 — 실패 모델 5분 대기 후 1회 재시도
-  3단계 — 재시도 후에도 실패 = BIOS 없는 단종/특수 모델
+  2단계 — 실패 모델 수집
+  3단계 — 3분 대기 후 1회 재시도
+  4단계 — 재시도 후에도 실패 = BIOS 없는 단종/특수 모델
            → maxsun_no_bios_models.log 에 영구 기록
 """
 
@@ -27,7 +28,10 @@ import time
 import random
 import logging
 import sqlite3
+import urllib.parse
 from threading import Lock
+
+import requests
 
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
@@ -92,8 +96,8 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
         logging.FileHandler(os.path.join(BASE_PATH, "maxsun_scraper.log"), encoding="utf-8"),
-        logging.StreamHandler(),
-    ],
+        logging.StreamHandler()
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -358,6 +362,46 @@ def _parse_bios_table(html: str) -> list:
 
 
 # ──────────────────────────────────────────────────────────────────
+#  이미지 URL 조회
+# ──────────────────────────────────────────────────────────────────
+SEARCH_BASE_URL = "https://www.maxsun.com/ko/search"
+_IMG_SESSION = requests.Session()
+_IMG_SESSION.headers.update({
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                  "AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
+})
+
+
+def fetch_image_url(model_name: str, timeout: int = 10) -> str:
+    """
+    Maxsun 상품 검색 결과 첫 번째 이미지 URL 반환.
+    URL: https://www.maxsun.com/ko/search?type=product&q=[model_name]
+    product-list 클래스 안의 첫 번째 상품 이미지만 사용.
+    """
+    url = SEARCH_BASE_URL + "?type=product&q=" + urllib.parse.quote(model_name)
+    try:
+        resp = _IMG_SESSION.get(url, timeout=timeout)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        container = soup.find(class_="product-list")
+        if container is None:
+            return ""
+        for img in container.find_all("img"):
+            src = (img.get("src") or img.get("data-src") or "").strip()
+            if not src:
+                continue
+            if "cdn.shopify" in src or "/cdn/shop/" in src or "/products/" in src:
+                if src.startswith("//"):
+                    src = "https:" + src
+                elif src.startswith("/"):
+                    src = "https://www.maxsun.com" + src
+                return src
+    except Exception as e:
+        logger.debug(f"이미지 URL 조회 실패 [{model_name}]: {e}")
+    return ""
+
+
+# ──────────────────────────────────────────────────────────────────
 #  체크포인트
 # ──────────────────────────────────────────────────────────────────
 def load_checkpoint() -> set:
@@ -495,7 +539,7 @@ def collect_all_data(skip_models: set = None) -> tuple:
     if skip_models is None:
         skip_models = set()
 
-    logger.info("\n� [1단계] 상세 수집 시작")
+    logger.info("\n🚀 [1단계] 상세 수집 시작")
     all_data = []
     failed   = []
     n        = 0
@@ -580,12 +624,15 @@ def collect_all_data(skip_models: set = None) -> tuple:
                         bios_count = len(bios_list)
                         logger.info(f"      [{n}] {model_name} → BIOS {bios_count}개")
 
+                        image_url = fetch_image_url(model_name)
+                        logger.info(f"         이미지: {image_url or '없음'}")
+
                         entry = {
                             "model_id":   model_val,
                             "model_name": model_name,
                             "brand":      brand_name,
                             "chipset":    chip_name,
-                            "image_url":  "",
+                            "image_url":  image_url,
                             "bios_list":  bios_list,
                         }
                         all_data.append(entry)
@@ -622,7 +669,7 @@ def retry_failed(failed: list, existing_data: list, completed: set) -> list:
         return existing_data
 
     logger.info(
-        f"\n⏳ [2단계] 실패 모델 {len(failed)}개 → "
+        f"\n⏳ [3단계] 실패 모델 {len(failed)}개 → "
         f"{CONFIG['retry_wait'] // 60}분 후 재시도..."
     )
     for rem in range(CONFIG["retry_wait"], 0, -30):

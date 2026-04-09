@@ -844,7 +844,7 @@ def collect_bios_data(motherboards):
 
     completed_models = load_checkpoint()
     if completed_models:
-        logger.info(f"⏩ Resume 모드: {len(completed_models)}개 완료, 나머지 수집")
+        logger.info(f"⏩ Resume 모드: {len(completed_models)}개 이미 완료, 나머지만 수집")
 
     all_data = []
     if os.path.exists(FINAL_JSON):

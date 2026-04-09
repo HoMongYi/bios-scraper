@@ -12,7 +12,6 @@ crontab: 0 7 * * * python3 /path/to/asus_bios_scraper.py
 """
 
 import argparse
-import requests
 import json
 import os
 import re
@@ -22,6 +21,8 @@ import logging
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
+
+import requests
 
 try:
     from tqdm import tqdm
