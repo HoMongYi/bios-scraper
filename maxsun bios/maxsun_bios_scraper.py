@@ -501,16 +501,14 @@ def save_to_sqlite(all_data: list):
                item.get("brand",""), item.get("chipset",""),
                item.get("image_url",""), 1 if has_bios else 0))
 
-        for b in item.get("bios_list", []):
+        bios_list = item.get("bios_list", [])
+        if bios_list:
+            cur.execute("DELETE FROM bios_versions WHERE model_id = ?", (mid,))
+        for b in bios_list:
             cur.execute("""
                 INSERT INTO bios_versions
                     (model_id, model_name, version, date, info, name, download_url)
                 VALUES (?,?,?,?,?,?,?)
-                ON CONFLICT(model_id, version) DO UPDATE SET
-                    date         = excluded.date,
-                    info         = excluded.info,
-                    name         = excluded.name,
-                    download_url = excluded.download_url
             """, (mid, item.get("model_name",""), b.get("version",""),
                    b.get("date",""), b.get("info",""),
                    b.get("name",""), b.get("download_url","")))
