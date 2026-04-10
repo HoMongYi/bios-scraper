@@ -31,7 +31,7 @@ motherboards (
 bios_versions (
     model_id / model_name  TEXT,
     version         TEXT,
-    date            TEXT,
+    date            TEXT,   -- YYYY-MM-DD ISO 형식 통일 (ORDER BY date DESC 정렬 가능)
     download_url    TEXT,
     ...
     UNIQUE(model_id, version)
@@ -40,6 +40,17 @@ bios_versions (
 
 > **이미지 DB 캐시**: Maxsun과 Gigabyte는 실행 시작 시 DB에서 기존 `image_url`을 미리 로드합니다.
 > 이미 수집된 모델은 불필요한 이미지 요청을 건너뜁니다.
+
+> **날짜 형식 통일**: 모든 스크래퍼가 `date` 컬럼을 `YYYY-MM-DD` ISO 형식으로 저장합니다.
+>
+> | 제조사 | 원본 형식 | 저장 형식 |
+> |---|---|---|
+> | ASRock | `2026/4/7` | `2026-04-07` |
+> | ASUS | `2026/4/8` | `2026-04-08` |
+> | Gigabyte | `2025-10-17T...` | `2025-10-17` |
+> | MSI | `12/28/2024` | `2024-12-28` |
+> | Biostar | `2024-12-28` | `2024-12-28` |
+> | Maxsun | `10/29/2025` | `2025-10-29` |
 
 ## 설치
 

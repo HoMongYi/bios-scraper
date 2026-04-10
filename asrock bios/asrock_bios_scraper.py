@@ -17,6 +17,7 @@ import re
 import time
 import random
 import logging
+from datetime import datetime
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
@@ -354,6 +355,9 @@ def _find_date(texts: list) -> str:
     for t in texts:
         m = _DATE_RE.search(t)
         if m:
+            parts = re.split(r'[/\-.]+', m.group())
+            if len(parts) == 3:
+                return f"{parts[0]}-{parts[1].zfill(2)}-{parts[2].zfill(2)}"
             return m.group()
     return ""
 

@@ -353,7 +353,11 @@ def _parse_bios_table(html: str) -> list:
 
             bios_list.append({
                 "version":      version,
-                "date":         _cell_text("date"),
+                "date":         (lambda d: (
+                    datetime.strptime(d, "%m/%d/%Y").strftime("%Y-%m-%d")
+                    if d and d.count("/") == 2 and len(d.split("/")[2]) == 4
+                    else d
+                ))(_cell_text("date")),
                 "info":         _cell_text("info"),
                 "name":         _cell_text("name"),
                 "download_url": dl_url,

@@ -18,6 +18,7 @@ import re
 import time
 import random
 import logging
+from datetime import datetime
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
@@ -187,7 +188,11 @@ def parse_bios_response(raw_json):
             )
             bios_list.append({
                 "version":     f.get("Version", ""),
-                "date":        f.get("ReleaseDate", ""),
+                "date":        (lambda d: (
+                    datetime(*[int(x) for x in d.split("/")]).strftime("%Y-%m-%d")
+                    if d and d.count("/") == 2
+                    else d
+               ))(f.get("ReleaseDate", "")),
                 "size":        f.get("FileSize", ""),
                 "description": f.get("Description", ""),
                 "link":        url,

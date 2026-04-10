@@ -1,4 +1,4 @@
-"""
+﻿"""
 MSI BIOS Data Collector
 crontab: 0 7 * * * python3 /path/to/msi_bios_scraper.py
 
@@ -20,6 +20,7 @@ import re
 import time
 import random
 import logging
+from datetime import datetime
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
@@ -306,7 +307,11 @@ def parse_bios_response(raw_json):
             raw_url = item.get("download_url") or ""
             bios_list.append({
                 "version":      item.get("download_version", ""),
-                "date":         item.get("download_release", ""),
+                "date":         (lambda d: (
+                    datetime.strptime(d, "%m/%d/%Y").strftime("%Y-%m-%d")
+                    if d and d.count("/") == 2 and len(d.split("/")[2]) == 4
+                    else d
+                ))(item.get("download_release", "")),
                 "info":         item.get("download_description", ""),
                 "name":         raw_url.split("/")[-1] if raw_url else "",
                 "download_url": raw_url,
