@@ -91,7 +91,7 @@ CREATE TABLE bios_versions (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     model_name  TEXT,
     version     TEXT,
-    date        TEXT,
+    date        TEXT,   -- YYYY-MM-DD ISO 형식
     description TEXT,
     link        TEXT,
     UNIQUE(model_name, version)

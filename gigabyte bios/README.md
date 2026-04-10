@@ -8,6 +8,8 @@ Nuxt.js SSR 페이지의 `__NUXT_DATA__` JSON을 파싱하며, `requests` 빠른
 1. **모델 리스트 수집** — `GetSecondProperty`(칩셋) → `GetProducts`(모델명) API
 2. **BIOS 수집** — 제품 지원 페이지 HTML → `__NUXT_DATA__` 파싱 (병렬)
    - requests 빠른 경로 우선 시도 → 실패 시 nodriver(Chromium) 폴백
+   - 이미지: support 페이지 파싱 우선, 없으면 `/gallery` 별도 요청
+   - DB에 기존 `image_url`이 있으면 이미지 요청 생략 (캐시)
 3. **재시도** — 실패 모델 5분 대기 후 1회 재시도
 4. **영구 기록** — 재시도 후에도 실패 → `gigabyte_no_bios_models.log`
 
@@ -78,7 +80,7 @@ CREATE TABLE bios_versions (
     model_id     TEXT,
     model_name   TEXT,
     version      TEXT,
-    date         TEXT DEFAULT '',
+    date         TEXT DEFAULT '',  -- YYYY-MM-DD ISO 형식
     info         TEXT DEFAULT '',
     name         TEXT DEFAULT '',
     download_url TEXT DEFAULT '',

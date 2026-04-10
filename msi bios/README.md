@@ -76,7 +76,7 @@ CREATE TABLE bios_versions (
     model_id     TEXT,
     model_name   TEXT,
     version      TEXT,
-    date         TEXT DEFAULT '',
+    date         TEXT DEFAULT '',  -- YYYY-MM-DD ISO 형식
     info         TEXT DEFAULT '',
     name         TEXT DEFAULT '',
     download_url TEXT DEFAULT '',
