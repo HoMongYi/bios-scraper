@@ -29,6 +29,7 @@ import random
 import logging
 import sqlite3
 import urllib.parse
+from datetime import datetime
 from threading import Lock
 
 import requests
@@ -358,6 +359,15 @@ def _parse_bios_table(html: str) -> list:
                 "download_url": dl_url,
             })
 
+    def _to_dt(s):
+        for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%Y/%m/%d"):
+            try:
+                return datetime.strptime(s, fmt)
+            except Exception:
+                pass
+        return datetime.min
+
+    bios_list.sort(key=lambda b: _to_dt(b["date"]), reverse=True)
     return bios_list
 
 
