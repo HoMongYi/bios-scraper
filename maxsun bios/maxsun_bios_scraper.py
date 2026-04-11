@@ -288,6 +288,16 @@ def _extract_download_url(cells: list, dl_idx) -> str:
     return ""
 
 
+def _norm_date(d: str) -> str:
+    """날짜 문자열 → YYYY-MM-DD (파싱 실패 시 원본 반환)"""
+    for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%Y/%m/%d"):
+        try:
+            return datetime.strptime(d, fmt).strftime("%Y-%m-%d")
+        except (ValueError, TypeError):
+            pass
+    return d or ""
+
+
 def _parse_bios_table(html: str) -> list:
     """
     Maxsun 드라이버 검색 결과 페이지에서 BIOS 테이블 파싱.
@@ -353,25 +363,13 @@ def _parse_bios_table(html: str) -> list:
 
             bios_list.append({
                 "version":      version,
-                "date":         (lambda d: (
-                    datetime.strptime(d, "%m/%d/%Y").strftime("%Y-%m-%d")
-                    if d and d.count("/") == 2 and len(d.split("/")[2]) == 4
-                    else d
-                ))(_cell_text("date")),
+                "date":         _norm_date(_cell_text("date")),
                 "info":         _cell_text("info"),
                 "name":         _cell_text("name"),
                 "download_url": dl_url,
             })
 
-    def _to_dt(s):
-        for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%Y/%m/%d"):
-            try:
-                return datetime.strptime(s, fmt)
-            except Exception:
-                pass
-        return datetime.min
-
-    bios_list.sort(key=lambda b: _to_dt(b["date"]), reverse=True)
+    bios_list.sort(key=lambda b: _norm_date(b["date"]), reverse=True)
     return bios_list
 
 
