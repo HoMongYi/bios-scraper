@@ -244,17 +244,13 @@ def _collect_models_from_combo(page, ptype: str, combo: dict) -> list:
             continue
         seen.add(s_id)
 
-        # 모델명: View 링크 이전 텍스트 (형제 노드)
+        # 모델명: <div class="row"> > <p> 텍스트
         model_name = ""
-        parent = a.find_parent()
-        if parent:
-            parts = []
-            for node in parent.children:
-                text = (node.get_text(strip=True)
-                        if hasattr(node, "get_text") else str(node).strip())
-                if text and text.lower() != "view":
-                    parts.append(text)
-            model_name = " ".join(parts).strip()
+        row = a.find_parent("div", class_="row")
+        if row:
+            p = row.find("p")
+            if p:
+                model_name = p.get_text(strip=True)
 
         models.append({
             "s_id":         s_id,
