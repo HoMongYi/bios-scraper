@@ -76,8 +76,10 @@ CREATE TABLE motherboards (
     model_id        TEXT PRIMARY KEY,
     model_name      TEXT,
     chipset         TEXT DEFAULT '',
+    socket          TEXT DEFAULT '',
     product_type    TEXT DEFAULT 'mb',
     image_url       TEXT DEFAULT '',
+    bios_page_url   TEXT DEFAULT '',
     updated_at      TEXT DEFAULT (datetime('now','localtime')),
     last_valid_date TEXT   -- 마지막으로 BIOS가 수집된 날짜
 );

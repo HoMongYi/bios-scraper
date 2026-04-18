@@ -179,7 +179,7 @@ def _discover_socket_chipset_combos(page, ptype: str) -> list:
     }""")
 
     if not sockets:
-        logger.warning(f"  소켓 옵션 없음 — 드롭다운 구조 확인 필요")
+        logger.warning("  ⚠️ 소켓 옵션 없음 — 드롭다운 구조 확인 필요")
         return []
 
     combos = []
@@ -515,7 +515,7 @@ def save_to_sqlite(all_data: list):
         );
     """)
     # 스키마 마이그레이션 (기존 DB 호환)
-    for col, default in [("last_valid_date", "NULL"), ("socket", "''"), ("size", "''")]:
+    for col, default in [("last_valid_date", "NULL"), ("socket", "''"), ("size", "''"), ("bios_page_url", "''")]:
         try:
             cur.execute(f"ALTER TABLE motherboards ADD COLUMN {col} TEXT DEFAULT {default}")
         except sqlite3.OperationalError:
@@ -530,9 +530,9 @@ def save_to_sqlite(all_data: list):
         has_bios = bool(item.get("bios_list"))
         cur.execute("""
             INSERT INTO motherboards
-                (model_id, model_name, chipset, socket, product_type, image_url,
+                (model_id, model_name, chipset, socket, product_type, image_url, bios_page_url,
                  updated_at, last_valid_date)
-            VALUES (?,?,?,?,?,?,datetime('now','localtime'),
+            VALUES (?,?,?,?,?,?,?,datetime('now','localtime'),
                     CASE WHEN ? THEN datetime('now','localtime') ELSE NULL END)
             ON CONFLICT(model_id) DO UPDATE SET
                 model_name      = excluded.model_name,
@@ -541,6 +541,7 @@ def save_to_sqlite(all_data: list):
                 product_type    = excluded.product_type,
                 image_url       = CASE WHEN motherboards.image_url != '' THEN motherboards.image_url
                                        ELSE excluded.image_url END,
+                bios_page_url   = excluded.bios_page_url,
                 updated_at      = excluded.updated_at,
                 last_valid_date = CASE WHEN excluded.last_valid_date IS NOT NULL
                                        THEN excluded.last_valid_date
@@ -548,7 +549,7 @@ def save_to_sqlite(all_data: list):
                                   END
         """, (mid, item.get("model_name", ""), item.get("chipset", ""),
               item.get("socket", ""), item.get("product_type", "mb"),
-              item.get("image_url", ""), 1 if has_bios else 0))
+              item.get("image_url", ""), item.get("bios_page_url", ""), 1 if has_bios else 0))
 
         for b in item.get("bios_list", []):
             cur.execute("""
@@ -684,6 +685,7 @@ def collect_all_data(product_list: list, skip_models: set = None) -> tuple:
                     "socket":       socket,
                     "product_type": ptype,
                     "image_url":    image_url,
+                    "bios_page_url": (IPC_VIEW_TPL if ptype == "ipc" else MB_VIEW_TPL).format(s_id),
                     "bios_list":    bios_list,
                 }
                 all_data.append(entry)
