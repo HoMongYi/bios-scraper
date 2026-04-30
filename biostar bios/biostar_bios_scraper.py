@@ -34,7 +34,7 @@ import logging
 import sqlite3
 from threading import Lock
 
-from urllib.parse import quote as urlquote
+from urllib.parse import quote as urlquote, urljoin
 
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
@@ -391,9 +391,17 @@ def _parse_direct_links(soup) -> list:
     for container in containers:
         for a in container.find_all("a", href=True):
             href = a["href"].strip()
-            if not re.search(r"\.(zip|rar|rom|bin|cap|fd)$", href, re.I):
+            text = a.get_text(" ", strip=True)
+            full_url = href if href.startswith("http") else urljoin(BASE_URL + "/", href)
+            if not re.search(r"\.(zip|rar|rom|bin|cap|fd)$", full_url, re.I):
                 continue
-            url = href if href.startswith("http") else BASE_URL + href
+            if not (
+                re.search(r"/upload/bios/", full_url, re.I)
+                or re.search(r"\bbios\b", text, re.I)
+                or re.search(r"\.(bss|bst)\b", text, re.I)
+            ):
+                continue
+            url = full_url
             if url in seen_urls:
                 continue
             seen_urls.add(url)
@@ -436,8 +444,17 @@ def collect_bios_for_product(page, s_id: str, product_type: str = "mb") -> dict:
     try:
         page.wait_for_function(
             """() => {
-                const t = document.body.innerText || '';
-                return /파일\s*크기|file\s*size/i.test(t) || /버전/i.test(t);
+                const boxes = Array.from(document.querySelectorAll('div.tab-box'));
+                for (const box of boxes) {
+                    const title = box.querySelector('div.tab-title');
+                    const titleText = (title?.textContent || '').trim();
+                    if (!/\bbios\b/i.test(titleText)) continue;
+                    if (box.querySelector('div.tbody div.tr, div.table div.tr')) {
+                        return true;
+                    }
+                }
+                const html = document.body.innerHTML || '';
+                return /openLightboxWithParameters\s*\(/.test(html) || /\/upload\/Bios\//i.test(html);
             }""",
             timeout=CONFIG["bios_wait"],
         )
@@ -451,6 +468,11 @@ def collect_bios_for_product(page, s_id: str, product_type: str = "mb") -> dict:
     bios_list = _parse_bios_card(html)
 
     # 파싱 실패 시 파일 링크 폴백
+    if not bios_list:
+        page.wait_for_timeout(1500)
+        html = page.content()
+        bios_list = _parse_bios_card(html)
+
     if not bios_list:
         bios_list = _parse_direct_links(BeautifulSoup(html, "html.parser"))
 
@@ -589,7 +611,7 @@ def append_no_bios_log(model_names: list):
 
 
 # ──────────────────────────────────────────────────────────────────
-#  1단계: 제품 목록 수집
+#  1단계: 메인보드 모델 리스트 수집
 # ──────────────────────────────────────────────────────────────────
 def gather_product_list(include_ipc: bool = False) -> list:
     """
@@ -631,7 +653,7 @@ def gather_product_list(include_ipc: bool = False) -> list:
 
 
 # ──────────────────────────────────────────────────────────────────
-#  2단계: 각 제품 BIOS 수집
+#  2단계: BIOS 수집
 # ──────────────────────────────────────────────────────────────────
 def collect_all_data(product_list: list, skip_models: set = None) -> tuple:
     """

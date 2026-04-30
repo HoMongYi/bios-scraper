@@ -585,19 +585,20 @@ def run_collection(pending_mbs, total, done_offset, completed_models,
 # ──────────────────────────────────────────────────────────────────
 def collect_bios_data(motherboards):
     logger.info(f"\n🚀 [2단계] 상세 수집 시작 (workers={CONFIG['workers']})")
-
+  
     completed_models = load_checkpoint()
     if completed_models:
         logger.info(f"⏩ Resume 모드: {len(completed_models)}개 이미 완료, 나머지만 수집")
-
+  
     all_data = []
     if os.path.exists(FINAL_JSON):
         try:
             with open(FINAL_JSON, "r", encoding="utf-8") as f:
                 all_data = json.load(f)
+            logger.info(f"📂 기존 데이터 로드: {len(all_data)}개")
         except Exception:
             all_data = []
-
+  
     pending = [mb for mb in motherboards if mb["model_name"] not in completed_models]
     total   = len(motherboards)
     done    = len(completed_models)
@@ -703,21 +704,20 @@ def main():
 
     session = requests.Session()
     session.headers.update(HEADERS)
-
+  
     motherboards = collect_model_list(session)
-
-    # 매 실행마다 체크포인트 초기화 (새 수집 시작)
+  
+    # 체크포인트는 매 실행마다 초기화 (크래시 복구 전용)
     if os.path.exists(CHECKPOINT_FILE):
         os.remove(CHECKPOINT_FILE)
         logger.info(f"🗑️  초기화: {os.path.basename(CHECKPOINT_FILE)} 삭제")
-
+  
     if args.full:
-        # no_bios_log 포함 전체 수집 (단종 모델 재확인 등 특수 목적)
+        # no_bios_log 포함 전체 재수집
         logger.info("🔄 전체 재수집 모드 (no_bios_log 포함)")
         collect_bios_data(motherboards)
     else:
-        # 기본: no_bios_log 모델만 제외하고 전체 수집
-        # DB upsert가 중복 처리 → 신규 BIOS 버전만 자동 추가됨
+        # 기본: no_bios_log 모델 제외 후 전체 수집
         no_bios = load_no_bios_log()
         pending = [mb for mb in motherboards if mb["model_name"] not in no_bios]
         logger.info(

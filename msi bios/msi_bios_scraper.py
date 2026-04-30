@@ -698,12 +698,15 @@ def collect_bios_data(motherboards):
         try:
             with open(FINAL_JSON, "r", encoding="utf-8") as f:
                 all_data = json.load(f)
+            logger.info(f"📂 기존 데이터 로드: {len(all_data)}개")
         except Exception:
             all_data = []
 
     pending = [mb for mb in motherboards if ckpt_key(mb) not in completed_models]
     total   = len(motherboards)
     done    = len(completed_models)
+
+    # ── 2단계: 전체 수집 ──
 
     all_data, completed_models, failed_mbs = run_collection(
         pending_mbs=pending, total=total, done_offset=done,
@@ -714,6 +717,8 @@ def collect_bios_data(motherboards):
         f"\n📊 1차 수집 완료 | "
         f"성공: {len(completed_models)}개 | 실패: {len(failed_mbs)}개"
     )
+
+    # ── 3단계: 실패 모델 5분 대기 후 1회 재시도 ──
 
     if failed_mbs:
         logger.info(
@@ -809,11 +814,14 @@ def main():
 
     motherboards = collect_model_list(session)
 
+    # 체크포인트/수집 결과 캐시는 매 실행마다 초기화
+
     for path in [CHECKPOINT_FILE, FINAL_JSON]:
         if os.path.exists(path):
             os.remove(path)
             logger.info(f"🗑️  초기화: {os.path.basename(path)} 삭제")
 
+    # --recollect 모드
     no_bios = set() if args.recollect else load_no_bios_log()
     pending = [mb for mb in motherboards if ckpt_key(mb) not in no_bios]
     logger.info(

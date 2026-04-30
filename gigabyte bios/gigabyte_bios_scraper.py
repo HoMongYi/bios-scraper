@@ -870,6 +870,7 @@ def collect_bios_data(motherboards):
         try:
             with open(FINAL_JSON, "r", encoding="utf-8") as f:
                 all_data = json.load(f)
+            logger.info(f"📂 기존 데이터 로드: {len(all_data)}개")
         except Exception:
             all_data = []
 
@@ -1000,7 +1001,7 @@ def main():
         os.remove(CHECKPOINT_FILE)
         logger.info(f"🗑️  초기화: {os.path.basename(CHECKPOINT_FILE)}")
 
-    # --recollect: 수집 결과 캐시도 초기화
+    # --recollect 모드
     if args.recollect:
         if os.path.exists(FINAL_JSON):
             os.remove(FINAL_JSON)

@@ -325,9 +325,27 @@ def _parse_bios_table(html: str) -> list:
         if "bios" not in first_text:
             continue
 
-        # Row 1: 컬럼 헤더 매핑
+        header_idx = None
+        for idx, row in enumerate(rows[1:], 1):
+            header_texts = [cell.get_text(" ", strip=True).lower()
+                            for cell in row.find_all(["th", "td"])]
+            if not header_texts:
+                continue
+            joined = " | ".join(header_texts)
+            if (
+                ("version" in joined or "bios version" in joined)
+                and "date" in joined
+                and ("info" in joined or "description" in joined)
+                and "name" in joined
+            ):
+                header_idx = idx
+                break
+
+        if header_idx is None:
+            continue
+
         col_map = {}
-        for i, cell in enumerate(rows[1].find_all(["th", "td"])):
+        for i, cell in enumerate(rows[header_idx].find_all(["th", "td"])):
             text = cell.get_text(strip=True).lower()
             if "version" in text or "bios" in text:
                 col_map["version"] = i
@@ -343,8 +361,7 @@ def _parse_bios_table(html: str) -> list:
         if not col_map:
             col_map = {"version": 0, "date": 1, "info": 2, "name": 3, "download": 4}
 
-        # Row 2+: 데이터
-        for row in rows[2:]:
+        for row in rows[header_idx + 1:]:
             cells = row.find_all(["td", "th"])
             if len(cells) < 2:
                 continue
@@ -356,14 +373,19 @@ def _parse_bios_table(html: str) -> list:
                 return cells[idx].get_text(" ", strip=True)
 
             version = _cell_text("version")
+            date_text = _cell_text("date")
             if not version:
+                continue
+            if version.strip().lower() in ("bios version", "version"):
+                continue
+            if date_text.strip().lower() == "date":
                 continue
 
             dl_url = _extract_download_url(cells, col_map.get("download"))
 
             bios_list.append({
                 "version":      version,
-                "date":         _norm_date(_cell_text("date")),
+                "date":         _norm_date(date_text),
                 "info":         _cell_text("info"),
                 "name":         _cell_text("name"),
                 "download_url": dl_url,
@@ -473,6 +495,7 @@ def save_to_sqlite(all_data: list):
         ("brand",           "''"),
         ("chipset",         "''"),
         ("last_valid_date", "NULL"),
+        ("bios_page_url",   "''"),
     ]:
         try:
             cur.execute(f"ALTER TABLE motherboards ADD COLUMN {col} TEXT DEFAULT {default}")
@@ -484,9 +507,9 @@ def save_to_sqlite(all_data: list):
         has_bios = bool(item.get("bios_list"))
         cur.execute("""
             INSERT INTO motherboards
-                (model_id, model_name, brand, chipset, image_url,
+                (model_id, model_name, brand, chipset, image_url, bios_page_url,
                  updated_at, last_valid_date)
-            VALUES (?,?,?,?,?,datetime('now','localtime'),
+            VALUES (?,?,?,?,?,?,datetime('now','localtime'),
                     CASE WHEN ? THEN datetime('now','localtime') ELSE NULL END)
             ON CONFLICT(model_id) DO UPDATE SET
                 model_name      = excluded.model_name,
@@ -494,6 +517,7 @@ def save_to_sqlite(all_data: list):
                 chipset         = excluded.chipset,
                 image_url       = CASE WHEN motherboards.image_url != '' THEN motherboards.image_url
                                        ELSE excluded.image_url END,
+                bios_page_url   = excluded.bios_page_url,
                 updated_at      = excluded.updated_at,
                 last_valid_date = CASE WHEN excluded.last_valid_date IS NOT NULL
                                        THEN excluded.last_valid_date
@@ -501,7 +525,7 @@ def save_to_sqlite(all_data: list):
                                   END
         """, (mid, item.get("model_name",""),
                item.get("brand",""), item.get("chipset",""),
-               item.get("image_url",""), 1 if has_bios else 0))
+               item.get("image_url",""), item.get("bios_page_url",""), 1 if has_bios else 0))
 
         bios_list = item.get("bios_list", [])
         if bios_list:
@@ -557,7 +581,7 @@ def append_no_bios_log(model_names: list):
 
 
 # ──────────────────────────────────────────────────────────────────
-#  1단계: Playwright 전체 수집
+#  1단계: 메인보드 모델 리스트 수집 + BIOS 수집
 # ──────────────────────────────────────────────────────────────────
 def collect_all_data(skip_models: set = None) -> tuple:
     """
@@ -665,12 +689,13 @@ def collect_all_data(skip_models: set = None) -> tuple:
                             logger.info(f"         이미지: {image_url or '없음'}")
 
                         entry = {
-                            "model_id":   model_val,
-                            "model_name": model_name,
-                            "brand":      brand_name,
-                            "chipset":    chip_name,
-                            "image_url":  image_url,
-                            "bios_list":  bios_list,
+                            "model_id":      model_val,
+                            "model_name":    model_name,
+                            "brand":         brand_name,
+                            "chipset":       chip_name,
+                            "image_url":     image_url,
+                            "bios_page_url": "https://www.maxsun.com/ko/pages/support",
+                            "bios_list":     bios_list,
                         }
                         all_data.append(entry)
 
@@ -698,7 +723,7 @@ def collect_all_data(skip_models: set = None) -> tuple:
 
 
 # ──────────────────────────────────────────────────────────────────
-#  2단계: BIOS 없는 모델 재시도
+#  3단계: BIOS 없는 모델 재시도
 # ──────────────────────────────────────────────────────────────────
 def retry_failed(failed: list, existing_data: list, completed: set) -> list:
     """BIOS 테이블이 비어있던 모델을 재시도."""
@@ -872,7 +897,7 @@ def main():
                 os.remove(path)
         logger.info("🔄 전체 재수집 모드")
     else:
-        # 체크포인트는 매 실행 시 삭제 (크래시 복구 전용 — 전 모델 재방문으로 신규 BIOS 감지)
+        # 체크포인트는 매 실행마다 초기화 (크래시 복구 전용)
         if os.path.exists(CHECKPOINT_FILE):
             os.remove(CHECKPOINT_FILE)
             logger.info("🗑️ 체크포인트 초기화 → 전 모델 재방문")
@@ -888,14 +913,14 @@ def main():
         except Exception:
             pass
 
-    # 1단계: 수집
+    # 1단계: 메인보드 모델 리스트 수집 + BIOS 수집
     new_data, failed = collect_all_data(skip_models=completed)
 
     # 기존 + 신규 병합 (중복 제거)
     existing_ids = {x["model_id"] for x in existing_data}
     all_data = existing_data + [d for d in new_data if d["model_id"] not in existing_ids]
 
-    # 3단계: 재시도
+    # 3단계: BIOS 없는 모델 재시도
     if failed:
         all_data = retry_failed(failed, all_data, completed)
     else:

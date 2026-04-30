@@ -873,93 +873,87 @@ def run_collection(pending_mbs: list, total: int, done_offset: int,
     if progress:
         progress.close()
 
-    # 주기적 저장은 워커 내부에서 처리하기 어려우므로 수집 완료 후 일괄 저장
-    _save_results(all_data, completed_models)
-
-    return all_data, completed_models, failed_mbs
-
-
-
 # ──────────────────────────────────────────────────────────────────
-#  2단계 + 3단계: BIOS 수집 및 재시도
+#  2단계: BIOS 수집 + 3단계: 실패 재시도
 # ──────────────────────────────────────────────────────────────────
 def collect_bios_data(motherboards: list):
-    logger.info(f"\n🚀 [2단계] 상세 수집 시작 (workers={CONFIG['workers']})")
+     logger.info(f"\n🚀 [2단계] 상세 수집 시작 (workers={CONFIG['workers']})")
 
-    completed_models = load_checkpoint()
-    if completed_models:
-        logger.info(f"⏩ Resume 모드: {len(completed_models)}개 이미 완료, 나머지만 수집")
+     completed_models = load_checkpoint()
+     if completed_models:
+         logger.info(f"⏩ Resume 모드: {len(completed_models)}개 이미 완료, 나머지만 수집")
 
-    all_data = []
-    if os.path.exists(FINAL_JSON):
-        try:
-            with open(FINAL_JSON, "r", encoding="utf-8") as f:
-                all_data = json.load(f)
-        except Exception:
-            all_data = []
+     all_data = []
+     if os.path.exists(FINAL_JSON):
+         try:
+             with open(FINAL_JSON, "r", encoding="utf-8") as f:
+                 all_data = json.load(f)
+             logger.info(f"📂 기존 데이터 로드: {len(all_data)}개")
+         except Exception:
+             all_data = []
 
-    pending = [mb for mb in motherboards if mb["model_name"] not in completed_models]
-    total   = len(motherboards)
-    done    = len(completed_models)
+     pending = [mb for mb in motherboards if mb["model_name"] not in completed_models]
+     total   = len(motherboards)
+     done    = len(completed_models)
 
-    # ── 2단계 ──
-    all_data, completed_models, failed_mbs = run_collection(
-        pending_mbs=pending,
-        total=total,
-        done_offset=done,
-        completed_models=completed_models,
-        all_data=all_data,
-        desc="수집 중",
-    )
-    _save_results(all_data, completed_models)
-    logger.info(
-        f"\n📊 1차 수집 완료 | "
-        f"성공: {len(completed_models)}개 | 실패: {len(failed_mbs)}개"
-    )
+     # ── 2단계: 전체 수집 ──
+     all_data, completed_models, failed_mbs = run_collection(
+         pending_mbs=pending,
+         total=total,
+         done_offset=done,
+         completed_models=completed_models,
+         all_data=all_data,
+         desc="수집 중",
+     )
+     _save_results(all_data, completed_models)
+     logger.info(
+         f"\n📊 1차 수집 완료 | "
+         f"성공: {len(completed_models)}개 | 실패: {len(failed_mbs)}개"
+     )
 
-    # ── 3단계: 실패 모델 재시도 ──
-    if failed_mbs:
-        logger.info(
-            f"\n⏳ [3단계] 실패 모델 {len(failed_mbs)}개 → "
-            f"{CONFIG['retry_wait'] // 60}분 후 재시도..."
-        )
-        for remaining in range(CONFIG["retry_wait"], 0, -30):
-            logger.info(f"   재시도까지 {remaining}초 남음...")
-            time.sleep(30)
+     # ── 3단계: 실패 모델 5분 대기 후 1회 재시도 ──
+     if failed_mbs:
+         logger.info(
+             f"\n⏳ [3단계] 실패 모델 {len(failed_mbs)}개 → "
+             f"{CONFIG['retry_wait'] // 60}분 후 재시도..."
+         )
+         for remaining in range(CONFIG["retry_wait"], 0, -30):
+             logger.info(f"   재시도까지 {remaining}초 남음...")
+             time.sleep(30)
 
-        logger.info(f"\n🔄 재시도 시작 ({len(failed_mbs)}개)")
-        retry_total = len(failed_mbs)
-        all_data, completed_models, still_failed_mbs = run_collection(
-            pending_mbs=failed_mbs,
-            total=retry_total,
-            done_offset=0,
-            completed_models=completed_models,
-            all_data=all_data,
-            desc="재시도",
-        )
-        _save_results(all_data, completed_models)
-        logger.info(
-            f"\n📊 재시도 완료 | "
-            f"성공: {retry_total - len(still_failed_mbs)}개 | "
-            f"최종 실패: {len(still_failed_mbs)}개"
-        )
-        if still_failed_mbs:
-            no_bios_names = [mb["model_name"] for mb in still_failed_mbs]
-            append_no_bios_log(no_bios_names)
-            logger.warning(
-                f"🚫 BIOS 없는 모델 {len(no_bios_names)}개 → "
-                f"{os.path.basename(NO_BIOS_LOG)} 에 영구 기록"
-            )
-    else:
-        still_failed_mbs = []
-        logger.info("✅ 실패 모델 없음, 재시도 생략")
+         logger.info(f"\n🔄 재시도 시작 ({len(failed_mbs)}개)")
+         retry_total = len(failed_mbs)
+         all_data, completed_models, still_failed_mbs = run_collection(
+             pending_mbs=failed_mbs,
+             total=retry_total,
+             done_offset=0,
+             completed_models=completed_models,
+             all_data=all_data,
+             desc="재시도",
+         )
+         _save_results(all_data, completed_models)
+         logger.info(
+             f"\n📊 재시도 완료 | "
+             f"성공: {retry_total - len(still_failed_mbs)}개 | "
+             f"최종 실패: {len(still_failed_mbs)}개"
+         )
+         if still_failed_mbs:
+             no_bios_names = [mb["model_name"] for mb in still_failed_mbs]
+             append_no_bios_log(no_bios_names)
+             logger.warning(
+                 f"🚫 BIOS 없는 모델 {len(no_bios_names)}개 → "
+                 f"{os.path.basename(NO_BIOS_LOG)} 에 영구 기록"
+             )
+     else:
+         still_failed_mbs = []
+         logger.info("✅ 실패 모델 없음, 재시도 생략")
 
-    save_to_sqlite(all_data)
-    logger.info(
-        f"\n✨ 전체 완료!\n"
-        f"   ✅ 수집 성공: {len(completed_models)}개\n"
-        f"   🚫 BIOS 없음: {len(still_failed_mbs)}개"
-    )
+     save_to_sqlite(all_data)
+     logger.info(
+         f"\n✨ 전체 완료!\n"
+         f"   ✅ 수집 성공: {len(completed_models)}개\n"
+         f"   🚫 BIOS 없음: {len(still_failed_mbs)}개"
+     )
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -1011,7 +1005,7 @@ def main():
     if args.data_dir:
         DB_FILE = os.path.join(args.data_dir, os.path.basename(DB_FILE))
 
-    # --retry-db: DB에서 BIOS 미수집 모델만 재시도
+    # --retry-db 모드
     if args.retry_db:
         conn = sqlite3.connect(DB_FILE)
         rows = conn.execute("""
@@ -1029,20 +1023,20 @@ def main():
         collect_bios_data(retry_mbs)
         return
 
-    # 1단계: 모델 리스트 수집 (항상 실행 — 카테고리/이미지 URL 포함)
+    # 1단계: 메인보드 모델 리스트 수집
     motherboards = collect_model_list()
     if not motherboards:
         logger.error("❌ 모델 리스트 수집 실패, 종료")
         logger.error("   → --debug 옵션으로 실행해 debug_listing.html 확인 권장")
         return
 
-    # 체크포인트는 매 실행마다 초기화 (모든 모델 재방문 → 신규 BIOS 버전 감지)
+    # 체크포인트는 매 실행마다 초기화 (크래시 복구 전용)
     # DB·JSON·no_bios_log 는 유지 (upsert로 갱신)
     if os.path.exists(CHECKPOINT_FILE):
         os.remove(CHECKPOINT_FILE)
         logger.info("🗑️  체크포인트 초기화 (이번 실행 중 크래시 복구용으로만 사용)")
 
-    # --reset: DB·JSON·no_bios_log 까지 완전 초기화
+    # --reset 모드
     if args.reset:
         for path in [FINAL_JSON, NO_BIOS_LOG]:
             if os.path.exists(path):
